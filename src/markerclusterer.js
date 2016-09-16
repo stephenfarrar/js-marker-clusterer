@@ -91,12 +91,6 @@ function MarkerClusterer(map, opt_markers, opt_options) {
    */
   this.styles_ = [];
 
-  /**
-   * @type {boolean}
-   * @private
-   */
-  this.ready_ = false;
-
   var options = opt_options || {};
 
   /**
@@ -192,7 +186,7 @@ MarkerClusterer.prototype.extend = function(obj1, obj2) {
  * @ignore
  */
 MarkerClusterer.prototype.onAdd = function() {
-  this.setReady_(true);
+  //this.createClusters_();
 };
 
 /**
@@ -488,20 +482,6 @@ MarkerClusterer.prototype.removeMarkers = function(markers, opt_nodraw) {
 
 
 /**
- * Sets the clusterer's ready state.
- *
- * @param {boolean} ready The state.
- * @private
- */
-MarkerClusterer.prototype.setReady_ = function(ready) {
-  if (!this.ready_) {
-    this.ready_ = ready;
-    this.createClusters_();
-  }
-};
-
-
-/**
  * Returns the number of clusters in the clusterer.
  *
  * @return {number} The number of clusters.
@@ -577,6 +557,7 @@ MarkerClusterer.prototype.setMinClusterSize = function(size) {
  * @return {google.maps.LatLngBounds} The extended bounds.
  */
 MarkerClusterer.prototype.getExtendedBounds = function(bounds) {
+  // We need to extend OverlayView for this.
   var projection = this.getProjection();
 
   // Turn the bounds into latlng.
@@ -741,7 +722,7 @@ MarkerClusterer.prototype.addToClosestCluster_ = function(marker) {
  * @private
  */
 MarkerClusterer.prototype.createClusters_ = function() {
-  if (!this.ready_) {
+  if (!this.map_.getBounds()) {
     return;
   }
 
@@ -970,10 +951,12 @@ Cluster.prototype.updateIcon = function() {
 
   var numStyles = this.markerClusterer_.getStyles().length;
   var sums = this.markerClusterer_.getCalculator()(this.markers_, numStyles);
+  var hue = (sums.index - 1) * 60;
   this.clusterIcon_.setPosition(this.center_);
   this.clusterIcon_.set('icon', createTextInCircleIcon({
     text: sums.text,
-    fillColor: 'hsl(' + (sums.index * 60) + ', 100%, 50%)' 
+    fillColor: 'hsl(' + hue + ', 100%, 75%)',
+    strokeColor: 'hsl(' + hue + ', 80%, 50%)'
   }));
   this.clusterIcon_.setMap(this.map_);
 };
