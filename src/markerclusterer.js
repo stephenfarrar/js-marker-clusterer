@@ -61,17 +61,13 @@
  *       'backgroundPosition': (string) The position of the backgound x, y.
  *       'iconAnchor': (Array) The anchor position of the icon x, y.
  * @constructor
- * // TODO(step): I'm pretty sure this doesn't need to extend OverlayView anymore.
- * @extends google.maps.OverlayView
  */
 function MarkerClusterer(map, opt_markers, opt_options) {
-  // MarkerClusterer implements google.maps.OverlayView interface. We use the
-  // extend function to extend MarkerClusterer with google.maps.OverlayView
-  // because it might not always be available when the code is defined so we
-  // look for it at the last possible moment. If it doesn't exist now then
-  // there is no point going ahead :)
-  this.extend(MarkerClusterer, google.maps.OverlayView);
+  /** @const @private {!google.maps.Map} */
   this.map_ = map;
+
+  /** @private {?google.maps.MapCanvasProjection} */
+  this.projection_ = null;
 
   /**
    * @type {Array.<google.maps.Marker>}
@@ -135,8 +131,6 @@ function MarkerClusterer(map, opt_markers, opt_options) {
 
   this.setupStyles_();
 
-  this.setMap(map);
-
   /**
    * @type {number}
    * @private
@@ -162,38 +156,6 @@ function MarkerClusterer(map, opt_markers, opt_options) {
   }
 }
 
-
-/**
- * Extends a objects prototype by anothers.
- *
- * @param {Object} obj1 The object to be extended.
- * @param {Object} obj2 The object to extend with.
- * @return {Object} The new extended object.
- * @ignore
- */
-MarkerClusterer.prototype.extend = function(obj1, obj2) {
-  return (function(object) {
-    for (var property in object.prototype) {
-      this.prototype[property] = object.prototype[property];
-    }
-    return this;
-  }).apply(obj1, [obj2]);
-};
-
-
-/**
- * Implementaion of the interface method.
- * @ignore
- */
-MarkerClusterer.prototype.onAdd = function() {
-  //this.createClusters_();
-};
-
-/**
- * Implementaion of the interface method.
- * @ignore
- */
-MarkerClusterer.prototype.draw = function() {};
 
 /**
  * Sets up the styles object.
@@ -552,14 +514,13 @@ MarkerClusterer.prototype.setMinClusterSize = function(size) {
 
 /**
  * Extends a bounds object by the grid size.
+ * 
+ * Precondition: this.projection_ must be defined.
  *
  * @param {google.maps.LatLngBounds} bounds The bounds to extend.
  * @return {google.maps.LatLngBounds} The extended bounds.
  */
 MarkerClusterer.prototype.getExtendedBounds = function(bounds) {
-  // We need to extend OverlayView for this.
-  var projection = this.getProjection();
-
   // Turn the bounds into latlng.
   var tr = new google.maps.LatLng(bounds.getNorthEast().lat(),
       bounds.getNorthEast().lng());
@@ -567,17 +528,17 @@ MarkerClusterer.prototype.getExtendedBounds = function(bounds) {
       bounds.getSouthWest().lng());
 
   // Convert the points to pixels and the extend out by the grid size.
-  var trPix = projection.fromLatLngToDivPixel(tr);
+  var trPix = this.projection_.fromLatLngToDivPixel(tr);
   trPix.x += this.gridSize_;
   trPix.y -= this.gridSize_;
 
-  var blPix = projection.fromLatLngToDivPixel(bl);
+  var blPix = this.projection_.fromLatLngToDivPixel(bl);
   blPix.x -= this.gridSize_;
   blPix.y += this.gridSize_;
 
   // Convert the pixel points back to LatLng
-  var ne = projection.fromDivPixelToLatLng(trPix);
-  var sw = projection.fromDivPixelToLatLng(blPix);
+  var ne = this.projection_.fromDivPixelToLatLng(trPix);
+  var sw = this.projection_.fromDivPixelToLatLng(blPix);
 
   // Extend the bounds to contain the new bounds.
   bounds.extend(ne);
@@ -722,7 +683,10 @@ MarkerClusterer.prototype.addToClosestCluster_ = function(marker) {
  * @private
  */
 MarkerClusterer.prototype.createClusters_ = function() {
-  if (!this.map_.getBounds()) {
+  // The projection is required by getExtendedBounds.
+  this.projection_ = this.projection_ || getMapCanvasProjection(this.map_);
+  
+  if (!this.projection_ || !this.map_.getBounds()) {
     return;
   }
 
@@ -738,6 +702,24 @@ MarkerClusterer.prototype.createClusters_ = function() {
     }
   }
 };
+
+
+/**
+ * Returns the map projection. May return null if the map isn't fully
+ * initialized.
+ *
+ * @param {!google.maps.Map} map
+ * @return {?google.maps.MapCanvasProjection}
+ */
+function getMapCanvasProjection(map) {
+  // The only way to get a MapCanvasProjection is to subclass OverlayView.
+  /** @constructor */
+  function Projector() { this.setMap(map); }
+  Projector.prototype = new google.maps.OverlayView;
+  Projector.prototype.draw = function() {};
+
+  return new Projector().getProjection();
+}
 
 
 /**
